@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Traffic Control System</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0d0f1a;
+      --panel:   #12152a;
+      --card:    #1a1e35;
+      --border:  #2a2f50;
+      --accent:  #5b8dee;
+      --green:   #3fd68f;
+      --red:     #f05a5a;
+      --yellow:  #f0c040;
+      --purple:  #9b6dff;
+      --cyan:    #00d4ff;
+      --text:    #d0d6f0;
+      --sub:     #6b7299;
+      --r:       14px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    /* ── Top nav ── */
+    nav {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 58px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    nav .logo { font-size: 24px; }
+    nav h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: .02em; }
+    nav p  { font-size: 12px; color: var(--sub); }
+    nav .spacer { flex: 1; }
+    .nav-tabs { display: flex; gap: 4px; }
+    .nav-tab {
+      padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 600; background: transparent; color: var(--sub);
+      transition: background .2s, color .2s;
+    }
+    .nav-tab.active, .nav-tab:hover { background: var(--card); color: var(--text); }
+
+    /* ── Layout ── */
+    .main-wrap { display: flex; height: calc(100vh - 58px); overflow: hidden; }
+
+    /* ── Left sidebar: junction selector ── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      overflow-y: auto;
+    }
+    .sidebar-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--sub); padding: 0 6px 8px; }
+    .junc-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px; border: 1px solid transparent;
+      cursor: pointer; background: transparent; text-align: left;
+      transition: background .2s, border-color .2s;
+      width: 100%;
+    }
+    .junc-btn:hover  { background: var(--card); }
+    .junc-btn.active { background: var(--card); border-color: var(--accent); }
+    .junc-dot { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #0d0f1a; flex-shrink: 0; }
+    .junc-info { display: flex; flex-direction: column; }
+    .junc-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+    .junc-sub   { font-size: 11px; color: var(--sub); }
+    .junc-pill  { margin-left: auto; }
+    .spill { padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .spill.idle       { background: rgba(107,114,153,.2); color: var(--sub); }
+    .spill.processing { background: rgba(240,192,64,.15);  color: var(--yellow); }
+    .spill.done       { background: rgba(63,214,143,.15);  color: var(--green); }
+    .spill.error      { background: rgba(240,90,90,.15);   color: var(--red); }
+
+    /* ── Center: video feed ── */
+    .video-wrap {
+      flex: 1; display: flex; flex-direction: column;
+      background: #080a14; overflow: hidden;
+    }
+    .video-topbar {
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    .junc-badge-big { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #0d0f1a; }
+    .video-title  { font-size: 14px; font-weight: 600; color: #fff; }
+    .video-fname  { font-size: 12px; color: var(--sub); }
+    .btn {
+      padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer;
+      font-size: 12px; font-weight: 700; transition: opacity .2s, transform .1s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn:hover   { opacity: .85; }
+    .btn:active  { transform: scale(.97); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-upload  { background: linear-gradient(135deg,#5b8dee,#9b6dff); color: #fff; }
+    .btn-run     { background: linear-gradient(135deg,#00c4a0,#5b8dee); color: #fff; }
+    .btn-stop    { background: var(--red); color: #fff; }
+    .btn-reset   { background: var(--border); color: var(--text); }
+    .spacer { flex: 1; }
+
+    .video-container {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 16px; position: relative; overflow: hidden;
+    }
+    .video-feed {
+      max-width: 100%; max-height: 100%;
+      border-radius: 12px; border: 1.5px solid var(--border);
+      display: block; object-fit: contain;
+      background: #000;
+    }
+    .upload-placeholder {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; width: 100%;
+    }
+    .upload-drop-area {
+      border: 2px dashed var(--border); border-radius: 16px;
+      padding: 60px 80px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative; max-width: 560px; width: 100%;
+    }
+    .upload-drop-area:hover, .upload-drop-area.dragover {
+      border-color: var(--accent); background: rgba(91,141,238,.05);
+    }
+    .upload-drop-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-icon-big { font-size: 52px; margin-bottom: 12px; }
+    .drop-main  { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .drop-small { font-size: 12px; color: var(--sub); }
+
+    .frame-badge {
+      position: absolute; bottom: 26px; left: 28px;
+      background: rgba(13,15,26,.75); backdrop-filter: blur(6px);
+      border-radius: 999px; padding: 4px 12px;
+      font-size: 12px; color: var(--purple); font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .frame-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--purple); }
+
+    /* ── Right panel: counts ── */
+    .right-panel {
+      width: 300px; flex-shrink: 0;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .rp-section { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+
+    /* Total vehicles big card */
+    .total-card {
+      background: linear-gradient(135deg, #1a1e40, #21194a);
+      border: 1px solid var(--purple);
+      border-radius: var(--r); padding: 24px 20px; text-align: center;
+      box-shadow: 0 0 30px rgba(155,109,255,.12);
+    }
+    .total-num  { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .total-label{ font-size: 13px; color: var(--sub); margin-top: 6px; }
+
+    /* By type list */
+    .by-type-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--sub); margin-bottom: 14px; }
+    .type-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .type-row:last-child { border-bottom: none; }
+    .type-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+    .type-name { font-size: 14px; color: var(--text); flex: 1; }
+    .type-count { font-size: 18px; font-weight: 700; color: #fff; min-width: 28px; text-align: right; }
+
+    /* Signal timing card */
+    .signal-section { padding: 18px 20px; }
+    .signal-block {
+      background: var(--card); border-radius: var(--r); padding: 16px;
+      border: 1px solid var(--border); margin-bottom: 10px;
+    }
+    .signal-block.green-active { border-color: var(--green); box-shadow: 0 0 16px rgba(63,214,143,.15); }
+    .signal-block.red-active   { border-color: #f05a5a55; }
+    .signal-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .signal-indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .signal-jname  { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+    .signal-status { font-size: 11px; font-weight: 700; }
+    .green-text { color: var(--green); }
+    .red-text   { color: var(--red); }
+    .signal-bar-wrap { background: rgba(255,255,255,.06); border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 6px; }
+    .signal-bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+    .signal-meta { font-size: 11px; color: var(--sub); display: flex; justify-content: space-between; }
+
+    /* Inline pulse animation */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+    .pulsing { animation: pulse 1.2s infinite; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Hidden file input helper */
+    #globalFileInput { display: none; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">🚦</div>
+  <div>
+    <h1>Smart Traffic Control System</h1>
+    <p>AI-powered signal optimization · 4 Junctions</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('live')">Live Detection</button>
+    <button class="nav-tab" onclick="showTab('signals')">All Signals</button>
+  </div>
+  <button class="btn btn-reset" style="margin-left:12px" onclick="resetAll()">↺ Reset</button>
+</nav>
+
+<input type="file" id="globalFileInput" accept="video/*"/>
+
+<div class="main-wrap" id="tabLive">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Junctions</div>
+    <button class="junc-btn active" id="jbtn-A" onclick="selectJunction('A')">
+      <div class="junc-dot" style="background:#5b8dee">A</div>
+      <div class="junc-info">
+        <span class="junc-name">Junction A</span>
+        <span class="junc-sub">Laptop 1</span>
+      </div>
+      <div class="junc-pill"><span class="spill idle" id="pill-A">Idle</span></div>
+    </button>
+    <button class="junc-btn" id="jbtn-B" onclick="selectJunction('B')">
+      <div class="junc-dot" style="background:#3fd68f">B</div>
+      <div class="junc-info">
+        <span class="junc-name">Junction B</span>
+        <span class="junc-sub">Laptop 2</span>
+      </div>
+      <div class="junc-pill"><span class="spill idle" id="pill-B">Idle</span></div>
+    </button>
+    <button class="junc-btn" id="jbtn-C" onclick="selectJunction('C')">
+      <div class="junc-dot" style="background:#f0c040">C</div>
+      <div class="junc-info">
+        <span class="junc-name">Junction C</span>
+        <span class="junc-sub">Laptop 3</span>
+      </div>
+      <div class="junc-pill"><span class="spill idle" id="pill-C">Idle</span></div>
+    </button>
+    <button class="junc-btn" id="jbtn-D" onclick="selectJunction('D')">
+      <div class="junc-dot" style="background:#9b6dff">D</div>
+      <div class="junc-info">
+        <span class="junc-name">Junction D</span>
+        <span class="junc-sub">Laptop 4</span>
+      </div>
+      <div class="junc-pill"><span class="spill idle" id="pill-D">Idle</span></div>
+    </button>
+  </aside>
+
+  <!-- Center video -->
+  <div class="video-wrap">
+    <div class="video-topbar">
+      <div class="junc-badge-big" id="topbar-badge" style="background:#5b8dee">A</div>
+      <div>
+        <div class="video-title" id="topbar-title">Junction A</div>
+        <div class="video-fname" id="topbar-fname">No video selected</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-upload" onclick="triggerUpload()">📂 Upload Video</button>
+      <button class="btn btn-run"  id="btn-run"  onclick="runStream()"  disabled>▶ Process</button>
+      <button class="btn btn-stop" id="btn-stop" onclick="stopStream()" style="display:none">⏹ Stop</button>
+    </div>
+
+    <div class="video-container" id="videoContainer">
+      <!-- Upload placeholder shown initially -->
+      <div class="upload-placeholder" id="uploadPlaceholder">
+        <div class="upload-drop-area" id="dropArea"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" accept="video/*" onchange="onFileChosen(this.files[0])"/>
+          <div class="drop-icon-big">🎬</div>
+          <div class="drop-main">Drop your traffic video here</div>
+          <div class="drop-small">or click to browse · MP4, AVI, MOV, MKV, WMV · up to 500MB</div>
+        </div>
+      </div>
+      <!-- Video feed -->
+      <img id="videoFeed" class="video-feed" style="display:none" alt="Live detection feed"/>
+      <!-- Frame badge -->
+      <div class="frame-badge" id="frameBadge" style="display:none">
+        <div class="frame-dot pulsing"></div>
+        <span id="frameLabel">Frame 0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <div class="rp-section">
+      <div class="total-card">
+        <div class="total-num" id="totalCount">0</div>
+        <div class="total-label">Total Vehicles Detected</div>
+      </div>
+    </div>
+
+    <div class="rp-section">
+      <div class="by-type-title">By Type</div>
+      <div class="type-row">
+        <div class="type-dot" style="background:#5b8dee"></div>
+        <div class="type-name">Car</div>
+        <div class="type-count" id="cnt-Car">0</div>
+      </div>
+      <div class="type-row">
+        <div class="type-dot" style="background:#00d4ff"></div>
+        <div class="type-name">Motorcycle</div>
+        <div class="type-count" id="cnt-Motorcycle">0</div>
+      </div>
+      <div class="type-row">
+        <div class="type-dot" style="background:#3fd68f"></div>
+        <div class="type-name">Bus</div>
+        <div class="type-count" id="cnt-Bus">0</div>
+      </div>
+      <div class="type-row">
+        <div class="type-dot" style="background:#f07840"></div>
+        <div class="type-name">Truck</div>
+        <div class="type-count" id="cnt-Truck">0</div>
+      </div>
+      <div class="type-row">
+        <div class="type-dot" style="background:#f05a5a"></div>
+        <div class="type-name">Ambulance</div>
+        <div class="type-count" id="cnt-Ambulance">0</div>
+      </div>
+    </div>
+
+    <div class="signal-section">
+      <div class="by-type-title">Signal Timing</div>
+      <div id="signalBlocks">
+        <div style="color:var(--sub);font-size:12px">Process videos to see optimized timings</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- All Signals tab -->
+<div class="main-wrap" id="tabSignals" style="display:none; padding:28px; flex-direction:column; gap:20px; overflow-y:auto;">
+  <div id="allSignalsContent" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+    <div style="color:var(--sub); font-size:13px; grid-column:1/-1">Process videos to see signal dashboard</div>
+  </div>
+</div>
+
+<script>
+const JUNCTIONS = ["A","B","C","D"];
+const COLORS    = {A:"#5b8dee", B:"#3fd68f", C:"#f0c040", D:"#9b6dff"};
+const NAMES     = {A:"Junction A", B:"Junction B", C:"Junction C", D:"Junction D"};
+
+let activeJ     = "A";
+let selectedFiles = {A:null, B:null, C:null, D:null};
+let jState      = {A:{status:"idle"}, B:{status:"idle"}, C:{status:"idle"}, D:{status:"idle"}};
+let streamActive = false;
+let sseSource   = null;
+let globalPollTimer = null;
+
+// ── Tab switching ───────────────────────────────────────────────────────────
+function showTab(t) {
+  document.getElementById("tabLive").style.display    = t==="live"    ? "flex"   : "none";
+  document.getElementById("tabSignals").style.display = t==="signals" ? "flex"   : "none";
+  document.querySelectorAll(".nav-tab").forEach((el,i)=> el.classList.toggle("active", (i===0&&t==="live")||(i===1&&t==="signals")));
+  if (t==="signals") renderAllSignals();
+}
+
+// ── Junction selection ──────────────────────────────────────────────────────
+function selectJunction(j) {
+  if (streamActive) stopStream();
+  activeJ = j;
+  JUNCTIONS.forEach(id => document.getElementById("jbtn-"+id).classList.toggle("active", id===j));
+
+  // Update topbar
+  const badge = document.getElementById("topbar-badge");
+  badge.textContent = j;
+  badge.style.background = COLORS[j];
+  document.getElementById("topbar-title").textContent = NAMES[j];
+
+  const f = selectedFiles[j];
+  document.getElementById("topbar-fname").textContent = f ? "📄 "+f.name : "No video selected";
+
+  // Show placeholder or feed
+  const hasVideo = !!f;
+  document.getElementById("uploadPlaceholder").style.display = hasVideo ? "none" : "flex";
+  document.getElementById("videoFeed").style.display = "none";
+  document.getElementById("frameBadge").style.display = "none";
+
+  document.getElementById("btn-run").disabled  = !hasVideo;
+  document.getElementById("btn-stop").style.display = "none";
+  document.getElementById("btn-run").style.display  = "inline-flex";
+
+  // Reset counts display
+  updateCountsDisplay({Car:0,Motorcycle:0,Bus:0,Truck:0,Ambulance:0,total:0});
+  if (sseSource) { sseSource.close(); sseSource = null; }
+}
+
+// ── File selection ──────────────────────────────────────────────────────────
+function triggerUpload() {
+  document.getElementById("globalFileInput").onchange = e => {
+    if (e.target.files[0]) onFileChosen(e.target.files[0]);
+  };
+  document.getElementById("globalFileInput").click();
+}
+function onFileChosen(file) {
+  if (!file) return;
+  selectedFiles[activeJ] = file;
+  document.getElementById("topbar-fname").textContent = "📄 "+file.name;
+  document.getElementById("uploadPlaceholder").style.display = "none";
+  document.getElementById("videoFeed").style.display = "none";
+  document.getElementById("btn-run").disabled = false;
+}
+function onDragOver(e)  { e.preventDefault(); document.getElementById("dropArea").classList.add("dragover"); }
+function onDragLeave(e) { document.getElementById("dropArea").classList.remove("dragover"); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById("dropArea").classList.remove("dragover");
+  if (e.dataTransfer.files[0]) onFileChosen(e.dataTransfer.files[0]);
+}
+
+// ── Upload & stream ─────────────────────────────────────────────────────────
+async function runStream() {
+  const j = activeJ;
+  const file = selectedFiles[j];
+  if (!file) return;
+
+  setPill(j, "processing", "Uploading");
+  document.getElementById("btn-run").disabled = true;
+  document.getElementById("btn-run").style.display = "none";
+  document.getElementById("btn-stop").style.display = "inline-flex";
+  streamActive = true;
+
+  // Upload
+  const fd = new FormData();
+  fd.append("video", file);
+  const r = await fetch(`/upload/${j}`, {method:"POST", body:fd});
+  if (!r.ok) { setPill(j,"error","Error"); return; }
+
+  setPill(j, "processing", "Detecting");
+
+  // Show MJPEG stream
+  const feed = document.getElementById("videoFeed");
+  feed.src = `/stream/${j}?t=${Date.now()}`;
+  feed.style.display = "block";
+  document.getElementById("uploadPlaceholder").style.display = "none";
+  document.getElementById("frameBadge").style.display = "flex";
+
+  // SSE for live counts
+  if (sseSource) sseSource.close();
+  sseSource = new EventSource(`/events/${j}`);
+  sseSource.onmessage = e => {
+    const d = JSON.parse(e.data);
+    updateCountsDisplay(d);
+    renderSignalBlocks();
+    if (d.status === "done") { setPill(j,"done","Done"); pollAllState(); }
+  };
+
+  // Frame counter — the real frame number is burned into the frame overlay by the server
+  let frameNum = 0;
+  feed.onload = () => { frameNum++; document.getElementById("frameLabel").textContent = `Frame ${frameNum}`; };
+}
+
+function stopStream() {
+  fetch(`/stop/${activeJ}`, {method:"POST"});
+  if (sseSource) { sseSource.close(); sseSource = null; }
+  streamActive = false;
+  document.getElementById("btn-stop").style.display = "none";
+  document.getElementById("btn-run").style.display  = "inline-flex";
+  document.getElementById("btn-run").disabled = false;
+  document.getElementById("frameBadge").style.display = "none";
+  setPill(activeJ, "done", "Done");
+}
+
+// ── Count display ───────────────────────────────────────────────────────────
+function updateCountsDisplay(d) {
+  document.getElementById("totalCount").textContent = d.total || 0;
+  ["Car","Motorcycle","Bus","Truck","Ambulance"].forEach(k => {
+    const el = document.getElementById("cnt-"+k);
+    if (el) el.textContent = d[k] || 0;
+  });
+}
+
+// ── Signal timing blocks (right panel) ─────────────────────────────────────
+async function renderSignalBlocks() {
+  const r = await fetch("/api/state");
+  const state = await r.json();
+  const done = Object.entries(state).filter(([,d])=>d.status==="done");
+  if (!done.length) return;
+
+  document.getElementById("signalBlocks").innerHTML = JUNCTIONS.map(j => {
+    const d = state[j];
+    if (!d || d.status !== "done") return "";
+    const isGreen = d.is_green;
+    const gt = d.green_time || 0;
+    const pct = Math.min(100, (gt / 90 * 100)).toFixed(1);
+    const barColor = isGreen ? "var(--green)" : "var(--red)";
+    const statusTxt = isGreen ? "🟢 GREEN" : "🔴 RED";
+    return `
+    <div class="signal-block ${isGreen?"green-active":"red-active"}">
+      <div class="signal-header">
+        <div class="signal-indicator" style="background:${COLORS[j]}"></div>
+        <div class="signal-jname">${NAMES[j]}</div>
+        <div class="signal-status ${isGreen?"green-text":"red-text"}">${statusTxt}</div>
+      </div>
+      <div class="signal-bar-wrap">
+        <div class="signal-bar-fill" style="width:${pct}%; background:${barColor}"></div>
+      </div>
+      <div class="signal-meta">
+        <span>${d.vehicles || 0} vehicles</span>
+        <span><b style="color:#fff">${gt}s</b> green</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Poll all junction state (for pill updates) ──────────────────────────────
+async function pollAllState() {
+  const r = await fetch("/api/state");
+  const state = await r.json();
+  JUNCTIONS.forEach(j => {
+    if (!state[j]) return;
+    const s = state[j].status;
+    if (s==="done")            setPill(j,"done","Done");
+    else if(s==="processing")  setPill(j,"processing","Detecting");
+    else if(s&&s.startsWith("error")) setPill(j,"error","Error");
+  });
+  renderAllSignals();
+}
+
+// ── All Signals tab ─────────────────────────────────────────────────────────
+async function renderAllSignals() {
+  const r = await fetch("/api/state");
+  const state = await r.json();
+  const done = Object.entries(state).filter(([,d])=>d.status==="done");
+  const wrap = document.getElementById("allSignalsContent");
+
+  if (!done.length) {
+    wrap.innerHTML = `<div style="color:var(--sub);font-size:13px;grid-column:1/-1">Process videos to see signal dashboard</div>`;
+    return;
+  }
+
+  // Summary row
+  const totalVeh = done.reduce((s,[,d])=>s+(d.vehicles||0),0);
+  const greenJ   = done.find(([,d])=>d.is_green);
+  const maxWait  = Math.max(...done.map(([,d])=>d.waiting_time||0));
+
+  wrap.innerHTML = `
+    <div style="grid-column:1/-1; display:flex; gap:20px; flex-wrap:wrap; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 24px; margin-bottom:4px;">
+      ${[["Total Vehicles",totalVeh],["Junctions Ready",done.length+" / 4"],["Priority Junction","<span style='color:var(--green)'>"+(greenJ?greenJ[0]:"—")+"</span>"],["Max Wait",maxWait+"s"],["Cycle",90+"s"]].map(([l,v])=>`
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:110px">
+          <div style="font-size:22px;font-weight:700;color:#fff">${v}</div>
+          <div style="font-size:11px;color:var(--sub)">${l}</div>
+        </div>`).join("")}
+    </div>
+    ${JUNCTIONS.map(j => {
+      const d = state[j];
+      if (!d || d.status !== "done") return `
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;opacity:.5">
+          <div style="font-size:22px;font-weight:700;color:${COLORS[j]};margin-bottom:4px">${j}</div>
+          <div style="font-size:12px;color:var(--sub)">No data</div>
+        </div>`;
+
+      const isGreen = d.is_green;
+      const gt = d.green_time||0;
+      const circ = 2*Math.PI*36;
+      const offset = circ - (circ*Math.min(gt,90)/90);
+      const cts = d.counts||{};
+      return `
+        <div style="background:var(--card);border:1px solid ${isGreen?"var(--green)":"var(--border)"};border-radius:14px;padding:20px;${isGreen?"box-shadow:0 0 20px rgba(63,214,143,.15)":""}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div style="width:36px;height:36px;border-radius:50%;background:${COLORS[j]};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#0d0f1a">${j}</div>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#fff">${NAMES[j]}</div>
+              <div style="font-size:11px;color:${isGreen?"var(--green)":"var(--red)"};font-weight:700">${isGreen?"🟢 GREEN":"🔴 RED"}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+            <div style="position:relative;width:90px;height:90px">
+              <svg width="90" height="90" viewBox="0 0 90 90" style="transform:rotate(-90deg)">
+                <circle cx="45" cy="45" r="36" fill="none" stroke="var(--border)" stroke-width="7"/>
+                <circle cx="45" cy="45" r="36" fill="none" stroke="${isGreen?"var(--green)":"var(--red)"}" stroke-width="7"
+                  stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div style="font-size:22px;font-weight:800;color:#fff">${gt}</div>
+                <div style="font-size:10px;color:var(--sub)">sec</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+            ${Object.entries(cts).filter(([k])=>!["total","peak"].includes(k)).map(([k,v])=>
+              `<div style="background:rgba(255,255,255,.06);border-radius:6px;padding:4px 9px;font-size:11px">
+                ${vehicleIcon(k)} <span style="font-weight:700;color:var(--accent)">${v}</span> ${k}
+              </div>`).join("")}
+          </div>
+          <div style="margin-top:10px;text-align:center;font-size:11px;color:var(--sub)">
+            Score: <b style="color:var(--text)">${d.score||0}</b> · Wait: <b style="color:var(--text)">${d.waiting_time||0}s</b>
+          </div>
+        </div>`;
+    }).join("")}
+
+    <!-- Timeline -->
+    <div style="grid-column:1/-1;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 24px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sub);margin-bottom:16px">Green Time Distribution (90s cycle)</div>
+      ${JUNCTIONS.map(j=>{
+        const d=state[j];
+        if(!d||d.status!=="done") return "";
+        const pct=((d.green_time||0)/90*100).toFixed(1);
+        return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <div style="width:24px;font-size:13px;font-weight:700;color:${COLORS[j]}">${j}</div>
+          <div style="flex:1;background:rgba(255,255,255,.05);border-radius:4px;height:30px;overflow:hidden">
+            <div style="height:100%;border-radius:4px;background:${COLORS[j]};width:${pct}%;display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:#0d0f1a;min-width:36px">${NAMES[j]}</div>
+          </div>
+          <div style="width:44px;text-align:right;font-size:12px;color:var(--sub)">${d.green_time}s</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function vehicleIcon(k) {
+  return {Car:"🚗",Motorcycle:"🏍️",Bus:"🚌",Truck:"🚛",Ambulance:"🚑"}[k]||"🚘";
+}
+
+// ── Pill helper ─────────────────────────────────────────────────────────────
+function setPill(j, cls, label) {
+  const el = document.getElementById("pill-"+j);
+  el.className = "spill "+cls;
+  el.textContent = label;
+}
+
+// ── Reset ───────────────────────────────────────────────────────────────────
+async function resetAll() {
+  if (sseSource) { sseSource.close(); sseSource=null; }
+  streamActive = false;
+  await fetch("/api/reset",{method:"POST"});
+  JUNCTIONS.forEach(j => { selectedFiles[j]=null; setPill(j,"idle","Idle"); });
+  document.getElementById("videoFeed").style.display = "none";
+  document.getElementById("uploadPlaceholder").style.display = "flex";
+  document.getElementById("frameBadge").style.display = "none";
+  document.getElementById("btn-run").disabled = true;
+  document.getElementById("btn-stop").style.display = "none";
+  document.getElementById("btn-run").style.display = "inline-flex";
+  updateCountsDisplay({Car:0,Motorcycle:0,Bus:0,Truck:0,Ambulance:0,total:0});
+  document.getElementById("signalBlocks").innerHTML = `<div style="color:var(--sub);font-size:12px">Process videos to see optimized timings</div>`;
+  document.getElementById("topbar-fname").textContent = "No video selected";
+  renderAllSignals();
+}
+</script>
+</body>
+</html>
